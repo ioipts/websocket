@@ -27,6 +27,7 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 			}
 			if (strnstr(msg, "debug", len) != NULL) {
 				printf("numuser=%d\n", room1->numuser);
+				printf("numreadset=%d\n", room1->numreadset);
 				int p=room1->config->numprocthread;
 				printf("numprocthread=%d\n", p);
 				return WEBSOCKMSGEND;
