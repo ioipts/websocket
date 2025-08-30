@@ -30,6 +30,7 @@
 #include <stdio.h>		
 #include <stdlib.h>   
 #include <ctype.h>
+#include <sys/types.h>
 #include <time.h>
 
 #define FILEPTR FILE*

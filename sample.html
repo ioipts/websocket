@@ -5,7 +5,7 @@
          var ws=null;
 		 function WebSocketTest() {
             if ("WebSocket" in window) {
-               ws = new WebSocket("ws://192.168.100.7:38894/echo");
+               ws = new WebSocket("ws://192.168.100.6:38894/echo");
                ws.onopen = function() {
 					document.getElementById("chat").value=
 					document.getElementById("chat").value+"connected\n";

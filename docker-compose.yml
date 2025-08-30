@@ -1,3 +1,4 @@
+version: '3'
 services:
   websocket-server:
     container_name: websocket-server
