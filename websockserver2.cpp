@@ -124,7 +124,7 @@ WebSockProcThread initwebsockproc(WebSockNetwork n, WebSockNetworkConfig config)
 
 void destroywebsockproc(WebSockProcThread p)
 {
-	#if defined(_PTHREAD)
+#if defined(_PTHREAD)
 	pthread_mutex_lock(&config->mutex);
 #endif
 	p->config->numprocthread--;
@@ -679,7 +679,6 @@ void* websocklistenthread(void* arg)
 						HTTPProcThread p = inithttpproc(n, config);
 						int rc = pthread_create(&workerThreadId, &tattr, websockprocthread, (void*)p);
 						if (rc != 0) {
-							config->numprocthread--;
 							destroywebsockproc(p);
 						}
 						else {
@@ -763,7 +762,6 @@ WebSockRoomProcThread WebSockServerNetwork::createRoom()
 		pthread_attr_setschedparam(&tattr, &schedparam);
 		int rc = pthread_create(&workerThreadId, &tattr, websockroomprocthread, (void*)p);
 		if (rc != 0) {
-			config->numprocthread--;
 			destroywebsockproc(p);
 		}
 		else {

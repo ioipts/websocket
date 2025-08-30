@@ -21,7 +21,17 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
             return WEBSOCKMSGLEAVE;
 		} break;
 		case WEBSOCKSTATECONTINUE: 
-		{   // relay message to all
+		{   
+			if (strnstr(msg, "exit", len) != NULL) {
+				return WEBSOCKMSGEND;
+			}
+			if (strnstr(msg, "debug", len) != NULL) {
+				printf("numuser=%d\n", room1->numuser);
+				int p=room1->config->numprocthread;
+				printf("numprocthread=%d\n", p);
+				return WEBSOCKMSGEND;
+			}
+			// relay message to all
 			for (int i=0;i<room1->numuser;i++)
 			{
 				if (room1->user[i]!=n) // not send to self
