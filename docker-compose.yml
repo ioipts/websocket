@@ -1,0 +1,10 @@
+services:
+  websocket-server:
+    container_name: websocket-server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "38894:38894"

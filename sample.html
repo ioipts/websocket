@@ -1,0 +1,53 @@
+<!DOCTYPE HTML>
+<html>
+   <head>
+      <script type = "text/javascript">
+         var ws=null;
+		 function WebSocketTest() {
+            if ("WebSocket" in window) {
+               ws = new WebSocket("ws://192.168.100.7:38894/echo");
+               ws.onopen = function() {
+					document.getElementById("chat").value=
+					document.getElementById("chat").value+"connected\n";
+					ws.send("ioipts");
+               };
+               ws.onmessage = function (evt) { 
+					document.getElementById("chat").value=
+					document.getElementById("chat").value+"received: "+evt.data+"\n";               
+			   };				
+               ws.onclose = function() {    
+					document.getElementById("chat").value=
+					document.getElementById("chat").value+"disconnected\n";
+					ws=null;
+               };
+			   ws.onerror = function(event) {
+					document.getElementById("chat").value=
+					document.getElementById("chat").value+"error: "+event+"\n";
+					ws=null;
+			   };
+            } else {
+               alert("WebSocket NOT supported by your Browser!");
+            }
+         }
+		 
+		 function send() {
+			if (ws!=null) { 
+			   var msg=document.getElementById("input").value;
+			   ws.send(msg);
+				document.getElementById("chat").value=
+				document.getElementById("chat").value+"sent: "+msg+"\n";               			   
+			}
+			document.getElementById("input").value="";
+		 }
+      </script>
+   </head>
+   <body>
+      <div id = "sse">
+         <a href = "javascript:WebSocketTest()">Run WebSocket</a>
+      </div>
+      <br/>
+	  <textarea id="chat" rows="5" cols="50"></textarea>
+	  <br/>
+	  <input type="text" id="input" size="50"/> <button onclick="send()">Send</button>
+   </body>
+</html>
