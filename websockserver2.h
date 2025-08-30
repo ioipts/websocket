@@ -264,6 +264,13 @@ struct WebSockProcThreadS
 	WebSockNetwork n;
 } PACKED;
 
+#if !defined(_PTHREAD)
+struct WebSockMutex
+{ 
+	std::mutex mutex;
+};
+#endif
+
 struct WebSockRoomProcThreadS
 {
 	WebSockNetworkConfig config;
@@ -279,6 +286,7 @@ struct WebSockRoomProcThreadS
 #if defined(_PTHREAD)
 	pthread_mutex_t mutex;
 #else
+	struct WebSockMutex* mutex;
 #endif
 	/**
 	 * Network ที่จะใส่เข้าไป ถ้า remove แล้วจะใส่เป็น null
