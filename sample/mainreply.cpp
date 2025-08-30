@@ -1,6 +1,7 @@
 /**
 * Web Socket server
 * for streaming chat
+* เพียงแค่ ถามแล้วก็ตอบออกไปเท่านั้น
 * 
 * 25/06/2023 tested
 */
@@ -16,17 +17,20 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 	{
 		case WEBSOCKSTATEINIT:
 		{
-		}
+			printf("New connection\n");
+			return WEBSOCKMSGCONTINUE;
+		} break;
 		case WEBSOCKSTATECONTINUE: 
 		{
 			if (len > 0) {
-				printf("received: %s\n", msg);
-				websocksettext(n, (std::string("hello ")+msg).c_str());
+				//ตอบออกไปด้วย hello
+				websocksettext(n, (std::string("hello ")+msg).c_str()); 
 			}
 			return (strcmp(msg, "bye") == 0)?WEBSOCKMSGEND:WEBSOCKMSGCONTINUE;
 		} break;
 		case WEBSOCKSTATEDESTROY:
 		{
+			printf("Connection closed\n");
 			return WEBSOCKMSGEND;
 		} break;
 	}

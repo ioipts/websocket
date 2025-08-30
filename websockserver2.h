@@ -7,8 +7,10 @@
 *
 * one listening thread
 * multiple process thread
+* จะสร้าง thread สำหรับแต่ละ connection ไปเลย
 * best for streaming
 * 
+* 30/08/2025 LEAVE, END support
 * 25/06/2023 Tested
 */
 
@@ -133,15 +135,19 @@ typedef struct WebSockNetworkS* WebSockNetwork;
 typedef struct WebSockNetworkConfigS* WebSockNetworkConfig;
 typedef struct WebSockListenThreadS* WebSockListenThread;
 typedef struct WebSockProcThreadS* WebSockProcThread;
+typedef struct WebSockRoomProcThreadS* WebSockRoomProcThread;
+typedef struct WebSockRoomProcThreadS* WebSockRoom;
 
-//send and disconnect
+//send and disconnect(destroy)
 #define WEBSOCKMSGEND 0
 //send and continue
 #define WEBSOCKMSGCONTINUE 1
+//send leave (not destroy)
+#define WEBSOCKMSGLEAVE 2
 
 /**
 * main function
-* @return HTTPMSGEND HTTPMSGCONTINUE
+* @return WEBSOCKMSGEND, WEBSOCKSTATECONTINUE, WEBSOCKMSGLEAVE
 */
 typedef int WebSockMsgFunc(WebSockNetwork n,const char* data,size_t len);
 
@@ -182,6 +188,7 @@ struct WebSockNetworkS
 	* public key from client
 	*/
 	char key[25];
+	int index;
 } PACKED;
 
 /**
@@ -253,8 +260,50 @@ struct WebSockListenThreadS
 
 struct WebSockProcThreadS
 {
-	WebSockNetwork n;
 	WebSockNetworkConfig config;
+	WebSockNetwork n;
+} PACKED;
+
+struct WebSockRoomProcThreadS
+{
+	WebSockNetworkConfig config;
+	fd_set** tcpreadset;		//vector of fd_set 64 at maximum
+ 	SOCKET* tcpreadsocks;		//max socket for each fd_set
+	int numreadset;
+	int sizereadset;
+
+	WebSockNetwork* user;
+	int numuser;	//จำนวน user ที่อยู่ในห้อง
+	int sizeuser;	//ขนาดของ ห้อง
+
+#if defined(_PTHREAD)
+	pthread_mutex_t mutex;
+#else
+	std::mutex mutex;
+#endif
+	/**
+	 * Network ที่จะใส่เข้าไป ถ้า remove แล้วจะใส่เป็น null
+	 */
+	WebSockNetwork add;
+	/**
+	 * Network ที่จะเอาออก
+	 */
+	WebSockNetwork remove;
+	/**
+	 * 
+	 */
+	int pingturnid;
+	/**
+	 * เก็บว่า user ไหนที่จะ ออก
+	//int numleaveuser;
+	//WebSockNetwork* leaveuser;
+	 */
+	int numenduser;
+	WebSockNetwork* enduser;
+	/**
+	* Exit signal
+	*/
+	bool exitflag;
 } PACKED;
 
 #pragma pack(pop)
@@ -308,12 +357,30 @@ public:
 	* thread safe
 	*/
 	void exit();
-};
+	/**
+	 * สร้างห้อง
+	 */
+	WebSockRoom createRoom();
+	/**
+	 * ทำลายห้อง
+	 */
+	void destroyRoom(WebSockRoom c);
+	/**
+	 * WIP
+	 * เพิ่ม network เข้าไปในห้อง  เอาไว้ใช้กับ thread 
+	 */
+	void addToRoom(WebSockRoom c, WebSockNetwork n);
+	/**
+	 * WIP
+	 * เอา network ออกจากห้อง
+	 */
+	void removeFromRoom(WebSockRoom c, WebSockNetwork n);
 
-/**
-* set the sending buffer
-*/
-void websockset(WebSockNetwork n, unsigned int size);
+	/**
+	 * จะย้าย network จากห้องหนึ่งไปอีกห้องหนึ่ง
+	 */
+	void switchRoom(WebSockRoom from, WebSockRoom to, WebSockNetwork n);
+};
 
 /**
 * set text msg
@@ -322,9 +389,14 @@ bool websocksettext(WebSockNetwork n, const char* msg);
 bool websocksetcontent(WebSockNetwork n, const char* content,size_t size);
 
 /**
-* set the receiving buffer
+* expand the sending buffer
+*/
+void websockset(WebSockNetwork n, unsigned int size);
+/**
+* expand the receiving buffer
 */
 void websockbuffer(WebSockNetwork n, unsigned int size);
+
 
 #endif
 

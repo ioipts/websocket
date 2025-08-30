@@ -7,8 +7,12 @@ unsigned int WebSockServerNetwork::PINGTIMEOUT = 20000;
 unsigned int WebSockServerNetwork::MAXCONNECTION = 2000;
 unsigned int WebSockServerNetwork::MAXBUFFER = 1000000;
 
+#define TCPREADSETSIZE 64		
+
 void sha1(const void* src, size_t bytelength, unsigned char* hash);
 void base64_encode(const unsigned char* data, size_t input_length, char* encoded_data); 
+void tcpunsetsocket(WebSockRoomProcThread c,WebSockNetwork n);
+void tcpsetsocket(WebSockRoomProcThread c,int index);
 
 SOCKET initwebsockserver(int port, unsigned int maxbuffer, unsigned int maxlisten)
 {
@@ -64,7 +68,6 @@ bool initwebsockconfig(WebSockNetworkConfig c, int port, int numproc, unsigned i
 	pthread_mutex_init(&c->mutex, NULL);
 #endif
 	return true;
-
 }
 
 void destroywebsockconfig(WebSockNetworkConfig c)
@@ -120,8 +123,58 @@ WebSockProcThread initwebsockproc(WebSockNetwork n, WebSockNetworkConfig config)
 
 void destroywebsockproc(WebSockProcThread p)
 {
-	destroywebsocknetwork(p->n);
+	#if defined(_PTHREAD)
+	pthread_mutex_lock(&config->mutex);
+#endif
+	p->config->numprocthread--;
+#if defined(_PTHREAD)
+	pthread_mutex_unlock(&config->mutex);
+#endif
 	FREEMEM(p);
+}
+
+WebSockRoomProcThread initwebsockroomproc(WebSockNetworkConfig config) {
+	WebSockRoomProcThread c=(WebSockRoomProcThread)ALLOCMEM(sizeof(WebSockRoomProcThreadS));
+	if (c == NULL) return NULL;
+	c->config = config;
+	c->exitflag = false;
+	#if defined(_PTHREAD)
+	pthread_init_mutex(&c->mutex);
+	#endif
+	c->tcpreadset=(fd_set**)ALLOCMEM(256*sizeof(fd_set*));
+	c->tcpreadsocks=(SOCKET*)ALLOCMEM(256*sizeof(SOCKET));
+	c->sizereadset=256;
+	c->numreadset=0;
+	c->user=(WebSockNetwork*)ALLOCMEM(256*sizeof(WebSockNetwork));
+	//c->leaveuser=(WebSockNetwork*)ALLOCMEM(256*sizeof(WebSockNetwork));
+	c->enduser=(WebSockNetwork*)ALLOCMEM(256*sizeof(WebSockNetwork));
+	c->sizeuser=256;
+	c->numuser=0;
+	c->numenduser=0;
+	//c->numleaveuser=0;
+	c->pingturnid=0;
+	return c;
+}
+
+void destroywebsockroomproc(WebSockRoomProcThread c)
+{
+	for (int i=0;i<c->numreadset;i++)
+	{
+		FREEMEM(c->tcpreadset[i]);
+	}
+#if defined(_PTHREAD)
+	pthread_mutex_destroy(&c->mutex);
+#endif
+	FREEMEM(c->tcpreadset);
+	FREEMEM(c->tcpreadsocks);
+	for (int i=0;i<c->numuser;i++)
+	{
+		destroywebsocknetwork(c->user[i]);
+	}
+	FREEMEM(c->user);
+	FREEMEM(c->enduser);
+	//FREEMEM(c->leaveuser);
+	FREEMEM(c);
 }
 
 void websockshiftbuffer(WebSockNetwork n, size_t len)
@@ -251,7 +304,7 @@ int websockdecode(char* data,int length,char* output) {
 * handshake for read & proc thread 
 * @return 0=nohandshake, 1=complete
 */
-bool websockhandshake(WebSockNetwork n)
+bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,int* ret)
 {
 	char* key = strstr(n->buffer, "Sec-WebSocket-Key: ");
 	char* endheader = strstr(n->buffer, "\r\n\r\n");
@@ -273,6 +326,8 @@ bool websockhandshake(WebSockNetwork n)
 		n->sendIndex = strlen(n->sendmsg);
 		n->handshake = true;
 		size_t len = endheader - n->buffer;
+		*ret=config->msgFunc(n, n->buffer, len); 
+		n->state = WEBSOCKSTATECONTINUE;
 		websockshiftbuffer(n, len+4);
 		return true;
 	}
@@ -327,26 +382,42 @@ int websocksend(WebSockNetwork n, unsigned int pingtimeout)
 	return r;
 }
 
-void endwebsockproc(WebSockProcThread p)
+void endwebsockproc(WebSockProcThread p,bool destroynetwork)
 {
 	WebSockNetworkConfig config = p->config;
 	WebSockNetwork n = p->n;
-	if ((n->state != WEBSOCKSTATEINIT) && (n->data != NULL)) {
-		n->state = WEBSOCKSTATEDESTROY;
-		config->msgFunc(n,NULL,-1);
-	}
-#if defined(_PTHREAD)
-	pthread_mutex_lock(&config->mutex);
-#endif
-	config->numprocthread--;
-#if defined(_PTHREAD)
-	pthread_mutex_unlock(&config->mutex);
-#endif
+	n->state = WEBSOCKSTATEDESTROY;
+	config->msgFunc(n,NULL,-1);
+	if (destroynetwork) { destroywebsocknetwork(p->n); }
 	destroywebsockproc(p);
 }
 
+void endwebsockroomproc(WebSockRoomProcThread p,WebSockNetwork n)
+{
+	WebSockNetworkConfig config = p->config;
+	n->state = WEBSOCKSTATEDESTROY;
+	config->msgFunc(n,NULL,-1);
+	destroywebsocknetwork(n);
+}
 
-void* websockprocthread(void* arg)
+void websockping(WebSockRoomProcThread c)
+{
+	if (c->numuser==0) return ;
+	  WebSockNetwork n=c->user[c->pingturnid%c->numuser];
+	  c->pingturnid=(c->pingturnid+1)%c->numuser;
+	  if (time(NULL)-n->lastping>c->config->pingtimeout)
+	  {
+#if defined(_DEBUGNETWORK) 
+		printf("ping disconnect\n");
+#endif 	     
+		destroywebsocknetwork(n);
+	  }
+}
+
+/**
+ * single process thread for each connection
+ */
+void* websocksingleprocthread(void* arg)
 {
 	WebSockProcThread c = (WebSockProcThread)arg;
 	WebSockNetworkConfig config = c->config;
@@ -359,7 +430,7 @@ void* websockprocthread(void* arg)
 	timeout.tv_usec = 0;
 
 	r = WEBSOCKMSGCONTINUE;
-	while ((r != WEBSOCKMSGEND) && (!config->exitflag) && (time(NULL) - n->lastping < config->pingtimeout)) {
+	while ((r != WEBSOCKMSGEND) && (r!=WEBSOCKMSGLEAVE) && (!config->exitflag) && (time(NULL) - n->lastping < config->pingtimeout)) {
 		FD_ZERO(&socks);
 		FD_SET(n->socket, &socks);
 		readsocks = select(FD_SETSIZE, &socks, (fd_set*)0, (fd_set*)0, &timeout);
@@ -372,9 +443,11 @@ void* websockprocthread(void* arg)
 				n->lastping = time(NULL);
 			}
 			if (!n->handshake) {
-				if (websockhandshake(n))
+				int ret=0;
+				if (websockhandshake(config, n,&ret))
 				{
 					websocksend(n, config->pingtimeout);
+					r=ret;
 				}
 			}
 			else {
@@ -385,7 +458,7 @@ void* websockprocthread(void* arg)
 						int dlen = websockdecode(n->buffer, n->bufferIndex, output);
 						websockshiftbuffer(n, dlen);
 						output[decodelen] = 0;		//end message for text based
-						int r = msgfunc(n, output, decodelen);
+						r = msgfunc(n, output, decodelen);
 						FREEMEM(output);
 						n->state = WEBSOCKSTATECONTINUE;
 					}
@@ -394,7 +467,7 @@ void* websockprocthread(void* arg)
 					{
 						if (websocksend(n, config->pingtimeout) == -1)
 						{
-							endwebsockproc(c);
+							endwebsockproc(c,true);
 							return NULL;
 						}
 					}
@@ -406,10 +479,129 @@ void* websockprocthread(void* arg)
 		}
 		else if (retval < 0)
 		{
-			endwebsockproc(c);
+			endwebsockproc(c,true);
 			return NULL;
 		}
 	}
+	endwebsockproc(c,(r!=WEBSOCKMSGLEAVE));
+	return NULL;
+}
+
+/**
+ * Room process thread for multiple connection
+ */
+void* websockroomprocthread(void* arg)
+{
+	WebSockRoomProcThread c = (WebSockRoomProcThread)arg;
+	WebSockNetworkConfig config = c->config;
+	WebSockNetwork n;
+	WebSockMsgFunc* msgfunc = config->msgFunc;
+	int retval, readsocks, r, size;
+	fd_set socks;
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 0;
+
+	while (!c->exitflag) {
+	  //จัดการ network เข้าออกก่อน
+#if defined(_PTHREAD)
+		pthread_mutex_lock(&c->mutex);
+#else
+		c->mutex.lock();
+#endif
+	if (c->add!=NULL) {
+		if (c->numuser>=c->sizeuser) { //need to expand
+			int newsize=c->sizeuser+256;
+			WebSockNetwork* u=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
+			WebSockNetwork* l=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
+			WebSockNetwork* e=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
+			CPYMEM(u,c->user,c->numuser*sizeof(WebSockNetwork));
+			CPYMEM(e,c->enduser,c->numuser*sizeof(WebSockNetwork));
+			FREEMEM(c->user);
+			FREEMEM(c->enduser);
+			c->user=u;
+			c->enduser=e;
+			c->sizeuser=newsize;
+		}
+		c->user[c->numuser]=c->add;
+		c->numuser++;
+		tcpsetsocket(c,c->numuser-1);
+		c->add=NULL;
+	}
+	if (c->remove!= NULL) {
+		tcpunsetsocket(c,c->remove);
+		c->remove = NULL;
+	}
+#if defined(_PTHREAD)
+		pthread_mutex_unlock(&c->mutex);
+#else
+		c->mutex.unlock();
+#endif	  
+	  int s=(long)ceil((float)c->numuser/(float)TCPREADSETSIZE);
+	  for (int i=0;i<s;i++)						//loop through all bucket (64 user/bucket)
+	  {
+       CPYMEM(&socks, (fd_set*)c->tcpreadset[i], sizeof(fd_set));
+	   readsocks=select(c->tcpreadsocks[i]+1, &socks, (fd_set *) 0, (fd_set *) 0, &timeout); 
+       if (readsocks>0)													 //check if any socks ready
+       {
+	   	size=(i+1)*TCPREADSETSIZE;
+	    size=((int)c->numuser<size)?(int)c->numuser:size;
+	    for (int j=i*TCPREADSETSIZE;j<size;j++) //loop all fd in the bucket
+	    {
+	    n=c->user[j];
+		if (FD_ISSET(n->socket,&socks))	
+		{ //process
+			retval = (readsocks > 0) ? recv(n->socket, &n->buffer[n->bufferIndex], n->bufferSize - n->bufferIndex, 0) : 0;
+			if (retval >= 0)		//in case retval==0 or -1
+			{
+				if (retval > 0) {
+					n->bufferIndex += retval;
+					n->buffer[n->bufferIndex] = 0;
+					n->lastping = time(NULL);
+				}
+				int decodelen = websockdecodelen((unsigned char*)n->buffer, n->bufferIndex);
+				while (decodelen > 0) {
+					char* output = (char*)ALLOCMEM(decodelen+1);
+					if (output != NULL) {
+						int dlen = websockdecode(n->buffer, n->bufferIndex, output);
+						websockshiftbuffer(n, dlen);
+						output[decodelen] = 0;		//end message for text based
+						int r = msgfunc(n, output, decodelen);
+						FREEMEM(output);
+						n->state = WEBSOCKSTATECONTINUE;
+					}
+					if (n->sendIndex > 0)
+					{
+						if (websocksend(n, config->pingtimeout) == -1)
+						{
+							c->enduser[c->numenduser]=n; 
+							c->numenduser++;
+						}
+					}
+					decodelen = websockdecodelen((unsigned char*)n->buffer, n->bufferIndex);
+				}
+				if (decodelen < 0) { c->enduser[c->numenduser]=n; c->numenduser++; }
+				else r = msgfunc(n, "", 0);
+			}
+			else if (retval < 0)
+			{
+				c->enduser[c->numenduser]=n;
+				c->numenduser++;
+			}
+		}														//FD_ISSET
+	   }													    //loop all fd in the bucket
+	  }															//any ready?
+	  }															//loop through all bucket
+	  //************************** end user ***********************
+	  for (int i=0;i<c->numenduser;i++)
+	  {
+		  tcpunsetsocket(c,c->enduser[i]);
+		  endwebsockroomproc(c,c->enduser[i]);
+	  }
+	  //************************** ping ***********************
+	  websockping(c);
+	}
+	destroywebsockroomproc(c);
 	return NULL;
 }
 
@@ -479,7 +671,7 @@ void* websocklistenthread(void* arg)
 						}
 #else
 						WebSockProcThread p = initwebsockproc(n, config);
-						std::thread proc(websockprocthread, (void*)p);
+						std::thread proc(websocksingleprocthread, (void*)p);
 						proc.detach();
 #endif
 					}
@@ -533,12 +725,177 @@ void WebSockServerNetwork::exit()
 {
 	if (config == NULL) return;
 	config->exitflag = true;
+	//หลังจากนี้ต้องรอให้ thread ปิดให้หมดก่อน
 }
 
 WebSockServerNetwork::~WebSockServerNetwork()
 {
 	if (config == NULL) return;
 	destroywebsockconfig(config);
+}
+
+WebSockRoomProcThread WebSockServerNetwork::createRoom()
+{
+	WebSockRoomProcThread c = initwebsockroomproc(config);
+}
+
+void WebSockServerNetwork::destroyRoom(WebSockRoomProcThread c)
+{
+	destroywebsockroomproc(c);
+}
+
+void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
+{
+	bool added=false;
+	while (!added) {
+#if defined(_PTHREAD)
+	pthread_mutex_lock(&c->mutex);
+#else 
+	 c->mutex.lock();
+#endif
+	if (c->add== NULL) {
+		c->add = n;
+		added=true;
+	}
+#if defined(_PTHREAD)
+	pthread_mutex_unlock(&p->mutex);
+#else
+	c->mutex.unlock();
+#endif
+	}
+	//รอจนกระทั้ง c->add!=NULL
+	added=false;
+	while (!added) {
+#if defined(_PTHREAD)
+	pthread_mutex_lock(&c->mutex);	
+#else
+	c->mutex.lock();
+#endif
+	if (c->add==NULL || c->add!=n) added=true;
+#if defined(_PTHREAD)
+	pthread_mutex_unlock(&c->mutex);	
+#else
+	c->mutex.unlock();
+#endif
+	}
+}
+
+void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwork n)
+{
+	bool removed=false;
+	while (!removed) {
+#if defined(_PTHREAD)
+	pthread_mutex_lock(&c->mutex);
+#else
+	c->mutex.lock();
+#endif
+	if (c->remove== NULL) {
+		c->remove = n;
+		removed=true;
+	}
+#if defined(_PTHREAD)
+	pthread_mutex_unlock(&c->mutex);
+#else
+    c->mutex.unlock();
+#endif
+	}
+	//รอจนกระทั้ง c->remove!=NULL
+	removed=false;
+	while (!removed) {
+#if defined(_PTHREAD)
+	pthread_mutex_lock(&c->mutex);
+#else
+    c->mutex.lock();
+#endif
+	if (c->remove==NULL || c->remove!=n) removed=true;
+#if defined(_PTHREAD)
+	pthread_mutex_unlock(&c->mutex);
+#else
+	c->mutex.unlock();
+#endif
+	}
+}
+
+/**  
+* O(1024)
+* reset the maxsocket and socks
+* create fd_set and maxsock for each 64 elements
+*/  
+void tcpsetsocket(WebSockRoomProcThread c,int index)
+{
+	int size,i;
+	fd_set *socks;
+	int s=index/TCPREADSETSIZE;
+	int f=s*TCPREADSETSIZE;	//first
+	int l=f+TCPREADSETSIZE;	//last
+	SOCKET maxsock;
+
+	if (c->numreadset<=s)
+	{
+		socks=(fd_set*)ALLOCMEM(sizeof(fd_set));
+		if (c->sizereadset<=c->numreadset){
+			//expand
+			int numsize=c->sizereadset+256;
+			fd_set** tmp = (fd_set**)ALLOCMEM(numsize*sizeof(fd_set*));
+			CPYMEM(tmp, c->tcpreadset, c->sizereadset*sizeof(fd_set*));
+			FREEMEM(c->tcpreadset);
+			c->tcpreadset=tmp;
+
+			SOCKET* tmpsock = (SOCKET*)ALLOCMEM(numsize*sizeof(SOCKET));
+			CPYMEM(tmpsock, c->tcpreadsocks, c->sizereadset*sizeof(SOCKET));
+			FREEMEM(c->tcpreadsocks);
+			c->tcpreadsocks=tmpsock;
+
+			c->sizereadset=numsize;
+		}
+		c->tcpreadset[c->numreadset]=socks;
+		c->tcpreadsocks[c->numreadset]=0;
+		c->numreadset++;
+	} else
+	{  
+		socks=(fd_set*)c->tcpreadset[s];
+	}
+
+	FD_ZERO(socks);
+	size=(int)c->numuser; 			
+	if (l>size) l=size;				//last
+	maxsock=0;
+	for (i=f;i<l;i++)
+	{
+		WebSockNetwork n=c->user[i];
+		FD_SET(n->socket, socks);
+		if ((unsigned int)n->socket>(unsigned int)maxsock) maxsock=n->socket;
+	}
+	c->tcpreadsocks[s]=maxsock;
+}
+
+/**
+* O(1024)
+* not destroy the network just remove from the list and recalculate the FD_SET
+*/
+void tcpunsetsocket(WebSockRoomProcThread c, WebSockNetwork n)
+{
+ WebSockNetwork* v=c->user;
+ int i,size=(int)c->numuser;
+ int found=0;
+ int index=-1;
+
+ for (i=0;(i<size) && (found==0);i++)
+ {
+  if (v[i]==n) 
+  {
+   v[i]=v[size-1];
+   c->numuser--;
+   index=i;
+   found=1;
+  }
+ }
+ if (found)  //recalculate fd_set
+ {
+  c->numreadset=ceil(c->numuser/TCPREADSETSIZE);
+  tcpsetsocket(c,c->numuser-1);
+  tcpsetsocket(c,index);
+ }
 }
 
 bool websocksettext(WebSockNetwork n, const char* msg)
