@@ -792,7 +792,6 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	websockmutex.unlock();
 #endif
 	}
-	/*
 	//รอจนกระทั้ง c->add!=NULL
 	added=false;
 	while (!added) {
@@ -807,7 +806,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 #else
 	websockmutex.unlock();
 #endif
-	}*/
+	}
 }
 
 void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwork n)
