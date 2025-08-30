@@ -15,15 +15,18 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 	switch (n->state)
 	{
 		case WEBSOCKSTATEINIT:
-		{
-	 	    //GET /echo HTTP/1.1
+		{	//GET /echo HTTP/1.1
             printf("New connection\n");
             websock->addToRoom(room1,n); // add new connection to room1
             return WEBSOCKMSGLEAVE;
 		} break;
 		case WEBSOCKSTATECONTINUE: 
 		{   // relay message to all
-			websocksettext(n, (std::string("hello ")+msg).c_str()); 
+			for (int i=0;i<room1->numuser;i++)
+			{
+				if (room1->user[i]!=n) // not send to self
+					websocksettext(room1->user[i], msg);
+			}
 			return WEBSOCKMSGCONTINUE;
 		} break;
 		case WEBSOCKSTATEDESTROY:

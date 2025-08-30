@@ -578,14 +578,6 @@ void* websockroomprocthread(void* arg)
 						n->state = WEBSOCKSTATECONTINUE;
 						if (r==WEBSOCKMSGEND) {c->enduser[c->numenduser]=n; c->numenduser++; }
 					}
-					if (n->sendIndex > 0)
-					{
-						if (websocksend(n, config->pingtimeout) == -1)
-						{
-							c->enduser[c->numenduser]=n; 
-							c->numenduser++;
-						}
-					}
 					decodelen = websockdecodelen((unsigned char*)n->buffer, n->bufferIndex);
 				}
 				if (decodelen < 0) { c->enduser[c->numenduser]=n; c->numenduser++; }
@@ -599,6 +591,19 @@ void* websockroomprocthread(void* arg)
 	   }													    //loop all fd in the bucket
 	  }															//any ready?
 	  }															//loop through all bucket
+	  //*************************** write *********************/
+	  for (int i=0;i<c->numuser;i++)
+	  {
+		n=c->user[i];
+		if (n->sendIndex > 0)
+		{
+			if (websocksend(n, config->pingtimeout) == -1)
+			{
+				c->enduser[c->numenduser]=n; 
+				c->numenduser++;
+			}
+		} 
+	  }
 	  //************************** end user ***********************
 	  for (int i=0;i<c->numenduser;i++)
 	  {

@@ -10,7 +10,7 @@
 * จะสร้าง thread สำหรับแต่ละ connection ไปเลย
 * best for streaming
 * 
-* 30/08/2025 LEAVE, END support
+* 30/08/2025 room support
 * 25/06/2023 Tested
 */
 
