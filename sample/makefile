@@ -31,7 +31,7 @@ endif
 
 INCFLAGS=-I$(LOCAL_PATH) -I$(GAME_PATH) 
 
-SOURCES=$(GAME_PATH)$(SEP)mainreply.cpp 
+SOURCES=$(GAME_PATH)$(SEP)mainchat.cpp 
 SOURCES+=$(LOCAL_PATH)$(SEP)websockserver2.cpp 
 
 OBJECTS=$(SOURCES:.cpp=.o)

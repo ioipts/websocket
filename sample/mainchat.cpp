@@ -18,8 +18,8 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 		{
 	 	    //GET /echo HTTP/1.1
             printf("New connection\n");
-            //websock->addToRoom(room1,n); // add new connection to room1
-            return WEBSOCKMSGCONTINUE;
+            websock->addToRoom(room1,n); // add new connection to room1
+            return WEBSOCKMSGLEAVE;
 		} break;
 		case WEBSOCKSTATECONTINUE: 
 		{   // relay message to all
@@ -28,6 +28,7 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 		} break;
 		case WEBSOCKSTATEDESTROY:
 		{
+            printf("destroy connection\n");
 			return WEBSOCKMSGEND;
 		} break;
 	}

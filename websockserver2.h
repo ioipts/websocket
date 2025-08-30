@@ -279,7 +279,6 @@ struct WebSockRoomProcThreadS
 #if defined(_PTHREAD)
 	pthread_mutex_t mutex;
 #else
-	std::mutex mutex;
 #endif
 	/**
 	 * Network ที่จะใส่เข้าไป ถ้า remove แล้วจะใส่เป็น null
