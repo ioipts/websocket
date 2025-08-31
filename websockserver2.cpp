@@ -9,7 +9,6 @@ unsigned int WebSockServerNetwork::MAXBUFFER = 1000000;
 
 #define TCPREADSETSIZE 64		
 
-
 void sha1(const void* src, size_t bytelength, unsigned char* hash);
 void base64_encode(const unsigned char* data, size_t input_length, char* encoded_data); 
 void tcpunsetsocket(WebSockRoomProcThread c,WebSockNetwork n);
