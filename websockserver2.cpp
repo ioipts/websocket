@@ -1,4 +1,5 @@
 #include "websockserver2.h"
+#include <math.h>
 
 //both receiving and sending buffer
 unsigned int WebSockServerNetwork::MSGSIZE = 100000;
@@ -521,7 +522,6 @@ void* websockroomprocthread(void* arg)
 		if (c->numuser>=c->sizeuser) { //need to expand
 			int newsize=c->sizeuser+256;
 			WebSockNetwork* u=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
-			WebSockNetwork* l=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
 			WebSockNetwork* e=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
 			CPYMEM(u,c->user,c->numuser*sizeof(WebSockNetwork));
 			CPYMEM(e,c->enduser,c->numuser*sizeof(WebSockNetwork));
@@ -625,7 +625,6 @@ void* websocklistenthread(void* arg)
 	WebSockListenThread c = (WebSockListenThread)arg;
 	WebSockNetworkConfig config = c->config;
 	SOCKET server=c->server;
-	int msgsize = c->config->msgsize;
 	WebSockNetwork n;
 	SOCKET csocket;
 	int readsocks;	
@@ -926,7 +925,7 @@ void tcpunsetsocket(WebSockRoomProcThread c, WebSockNetwork n)
  }
  if (found)  //recalculate fd_set
  {
-  c->numreadset=ceil(c->numuser/TCPREADSETSIZE);
+  c->numreadset=(long)ceil((float)c->numuser/(float)TCPREADSETSIZE);
   tcpsetsocket(c,c->numuser-1);
   tcpsetsocket(c,index);
  }

@@ -6,7 +6,6 @@
 
 #include "websockserver2.h"
 #include <string>
-#include <string.h>
 
 WebSockServerNetwork* websock;
 WebSockRoomProcThread room1;
@@ -23,10 +22,10 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 		} break;
 		case WEBSOCKSTATECONTINUE: 
 		{   
-			if (strnstr(msg, "exit", len) != NULL) {
+			if ((len>=4) && (memcmp(msg, "exit", len) ==0)) {
 				return WEBSOCKMSGEND;
 			}
-			if (strnstr(msg, "debug", len) != NULL) {
+			if ((len>=5) && (memcmp(msg, "debug", len) == 0)) {
 				printf("numuser=%d\n", room1->numuser);
 				printf("numreadset=%d\n", room1->numreadset);
 				int p=room1->config->numprocthread;
@@ -47,6 +46,7 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 			return WEBSOCKMSGEND;
 		} break;
 	}
+	return WEBSOCKMSGEND;
 }
 
 int main(int argc, char** argv)
