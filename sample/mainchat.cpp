@@ -6,6 +6,7 @@
 
 #include "websockserver2.h"
 #include <string>
+#include <string.h>
 
 WebSockServerNetwork* websock;
 WebSockRoomProcThread room1;

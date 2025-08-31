@@ -26,6 +26,7 @@
 #else
 #include <atomic>
 #include <thread> 
+#include <mutex>
 #endif
 
 #include <string.h>
