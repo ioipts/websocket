@@ -1,3 +1,9 @@
 /sample/*.o
 /sample/websocket
 /.vscode
+/.vs
+/msvc/.vs
+/msvc/x64
+/msvc/x32
+/msvc/webchat/x64
+/msvc/webchat/x32

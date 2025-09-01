@@ -51,7 +51,7 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 
 int main(int argc, char** argv)
 {
-	printf("Theif server 1.0:\n");
+	printf("Web chat server 1.0:\n");
 	WebSockServerNetwork* n3 = new WebSockServerNetwork(38894);
 	n3->setOnMsg(onnetwork);
     room1=n3->createRoom(); // create a room for gaming
