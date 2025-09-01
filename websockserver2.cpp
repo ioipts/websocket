@@ -624,7 +624,7 @@ void* websockroomprocthread(void* arg)
 	  }
 	  c->numenduser=0;
 	  //************************** ping ***********************
-	  //websockping(c);
+	  websockping(c);
 	}
 	destroywebsockroomproc(c);
 	return NULL;
