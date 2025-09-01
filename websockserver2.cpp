@@ -311,7 +311,7 @@ int websockdecode(char* data,int length,char* output) {
 * handshake for read & proc thread 
 * @return 0=nohandshake, 1=complete
 */
-bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,int* ret)
+bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,size_t* l)
 {
 	char* key = strstr(n->buffer, "Sec-WebSocket-Key: ");
 	char* endheader = strstr(n->buffer, "\r\n\r\n");
@@ -333,8 +333,7 @@ bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,int* ret)
 		n->sendIndex = strlen(n->sendmsg);
 		n->handshake = true;
 		size_t len = endheader - n->buffer;
-		*ret=config->msgFunc(n, n->buffer, len); 
-		n->state = WEBSOCKSTATECONTINUE;
+		*l = len;
 		websockshiftbuffer(n, len+4);
 		return true;
 	}
@@ -452,11 +451,19 @@ void* websocksingleprocthread(void* arg)
 				n->lastping = time(NULL);
 			}
 			if (!n->handshake) {
-				int ret=0;
-				if (websockhandshake(config, n,&ret))
+				size_t len = n->bufferIndex;
+				if (websockhandshake(config, n,&len))
 				{
-					websocksend(n, config->pingtimeout);
-					r=ret;
+					int sr=websocksend(n, config->pingtimeout);
+					while (sr==WEBSOCKMSGCONTINUE) {
+						sr=websocksend(n, config->pingtimeout);
+					}
+					if (sr==-1) {
+						endwebsockproc(c,true);
+						return NULL;
+					}
+					r = config->msgFunc(n, n->buffer, len);
+					n->state = WEBSOCKSTATECONTINUE;
 				}
 			}
 			else {
@@ -474,7 +481,11 @@ void* websocksingleprocthread(void* arg)
 					else r = WEBSOCKMSGEND;
 					if (n->sendIndex > 0)
 					{
-						if (websocksend(n, config->pingtimeout) == -1)
+						int sr = websocksend(n, config->pingtimeout);
+						while (sr==WEBSOCKMSGCONTINUE) {
+							sr = websocksend(n, config->pingtimeout);
+						}
+						if (sr == -1)
 						{
 							endwebsockproc(c,true);
 							return NULL;
@@ -613,7 +624,7 @@ void* websockroomprocthread(void* arg)
 	  }
 	  c->numenduser=0;
 	  //************************** ping ***********************
-	  websockping(c);
+	  //websockping(c);
 	}
 	destroywebsockroomproc(c);
 	return NULL;
