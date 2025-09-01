@@ -483,7 +483,6 @@ void* websocksingleprocthread(void* arg)
 					decodelen = websockdecodelen((unsigned char*)n->buffer, n->bufferIndex);
 				}
 				if (decodelen < 0) r = WEBSOCKMSGEND;
-				else r = msgfunc(n, "", 0);
 			}
 		}
 		else if (retval < 0)

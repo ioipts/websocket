@@ -17,8 +17,8 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 		case WEBSOCKSTATEINIT:
 		{	//GET /echo HTTP/1.1
             printf("New connection\n");
-            websock->addToRoom(room1,n); // add new connection to room1
-            return WEBSOCKMSGLEAVE;
+          //  websock->addToRoom(room1,n); // add new connection to room1
+            return WEBSOCKMSGCONTINUE;
 		} break;
 		case WEBSOCKSTATECONTINUE: 
 		{   
@@ -33,11 +33,12 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 				return WEBSOCKMSGEND;
 			}
 			// relay message to all
-			for (int i=0;i<room1->numuser;i++)
-			{
-				if (room1->user[i]!=n) // not send to self
-					websocksettext(room1->user[i], msg);
-			}
+			//for (int i=0;i<room1->numuser;i++)
+			//{
+			//	if (room1->user[i]!=n) // not send to self
+			//		websocksettext(room1->user[i], msg);
+			//}
+			websocksettext(n, msg); // echo back to self
 			return WEBSOCKMSGCONTINUE;
 		} break;
 		case WEBSOCKSTATEDESTROY:
