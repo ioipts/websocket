@@ -5,7 +5,7 @@
          var ws=null;
 		 function WebSocketTest() {
             if ("WebSocket" in window) {
-               ws = new WebSocket("ws://localhost:38894/echo");
+               ws = new WebSocket("ws://game.mekmok.com/ws/echo");
                ws.onopen = function() {
 					document.getElementById("chat").value=
 					document.getElementById("chat").value+"connected\n";
