@@ -526,7 +526,7 @@ void* websockroomprocthread(void* arg)
 #if defined(_PTHREAD)
 		pthread_mutex_lock(&c->mutex);
 #else
-	c->mutex->mutex.lock();
+	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add!=NULL) {
 		if (c->numuser>=c->sizeuser) { //need to expand
@@ -555,6 +555,7 @@ void* websockroomprocthread(void* arg)
 		pthread_mutex_unlock(&c->mutex);
 #else
 		c->mutex->mutex.unlock();
+	}
 #endif	  
 	  int s=(long)ceil((float)c->numuser/(float)TCPREADSETSIZE);
 	  for (int i=0;i<s;i++)						//loop through all bucket (64 user/bucket)
@@ -794,7 +795,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 #if defined(_PTHREAD)
 	pthread_mutex_lock(&c->mutex);
 #else
-	c->mutex->mutex.lock();
+	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add== NULL) {
 		c->add = n;
@@ -804,6 +805,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	pthread_mutex_unlock(&p->mutex);
 #else
 	c->mutex->mutex.unlock();
+	}
 #endif
 	}
 	//รอจนกระทั้ง c->add!=NULL
@@ -812,13 +814,14 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 #if defined(_PTHREAD)
 	pthread_mutex_lock(&c->mutex);	
 #else
-	c->mutex->mutex.lock();
+	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add==NULL || c->add!=n) added=true;
 #if defined(_PTHREAD)
 	pthread_mutex_unlock(&c->mutex);	
 #else
 	c->mutex->mutex.unlock();
+	}
 #endif
 	}
 }
