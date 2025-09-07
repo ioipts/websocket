@@ -7,7 +7,7 @@
 //both receiving and sending buffer (not below 1000	bytes)
 unsigned int WebSockServerNetwork::MSGSIZE = 100000;
 unsigned int WebSockServerNetwork::MAXLISTEN = 128;
-unsigned int WebSockServerNetwork::PINGTIMEOUT = 20000;
+unsigned int WebSockServerNetwork::PINGTIMEOUT = 30;	//seconds
 unsigned int WebSockServerNetwork::MAXCONNECTION = 2000;
 unsigned int WebSockServerNetwork::MAXBUFFER = 1000000;
 
@@ -363,7 +363,7 @@ int websocksend(WebSockNetwork n, unsigned int pingtimeout)
 	int r = 0;
 	TIME now = time(NULL);
 	//no 'dontwait' will block if connection lost 
-	int rets = send(n->socket, n->sendmsg, n->sendIndex, MSG_NOSIGNAL | MSG_DONTWAIT); 
+	ssize_t rets = send(n->socket, n->sendmsg, n->sendIndex, MSG_NOSIGNAL | MSG_DONTWAIT); 
 	if (rets <= 0)
 	{
 		if ((unsigned int)(time(NULL)-n->lastping) < pingtimeout) {
@@ -425,8 +425,10 @@ void websockping(WebSockRoomProcThread c)
 	  if (time(NULL)-n->lastping>c->config->pingtimeout)
 	  {
 #if defined(_DEBUGNETWORK) 
-		printf("ping disconnect\n");
+		std::cout << "ping disconnect " << std::endl;
 #endif 	     
+		n->state = WEBSOCKSTATEDESTROY;
+		c->config->msgFunc(n,NULL,-1);
 		destroywebsocknetwork(n);
 	  }
 }

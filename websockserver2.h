@@ -208,7 +208,7 @@ struct WebSockNetworkConfigS
 	unsigned int numprocthread;
 	pthread_mutex_t mutex;
 #else
-	std::atomic_int numprocthread;
+	std::atomic_uint numprocthread;
 #endif
 	/**
 	* message function
