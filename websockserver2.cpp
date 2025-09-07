@@ -1,7 +1,10 @@
 #include "websockserver2.h"
+#include <iostream>
 #include <math.h>
 
-//both receiving and sending buffer
+#define _DEBUGNETWORK
+
+//both receiving and sending buffer (not below 1000	bytes)
 unsigned int WebSockServerNetwork::MSGSIZE = 100000;
 unsigned int WebSockServerNetwork::MAXLISTEN = 128;
 unsigned int WebSockServerNetwork::PINGTIMEOUT = 20000;
@@ -14,6 +17,7 @@ void sha1(const void* src, size_t bytelength, unsigned char* hash);
 void base64_encode(const unsigned char* data, size_t input_length, char* encoded_data); 
 void tcpunsetsocket(WebSockRoomProcThread c,WebSockNetwork n);
 void tcpsetsocket(WebSockRoomProcThread c,int index);
+void printipaddr(struct sockaddr* addr);
 
 SOCKET initwebsockserver(int port, unsigned int maxbuffer, unsigned int maxlisten)
 {
@@ -313,6 +317,11 @@ int websockdecode(char* data,int length,char* output) {
 */
 bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,size_t* l)
 {
+	// printf out n->addr ข้อมูล ip address
+#if defined(_DEBUGNETWORK)
+	printipaddr(&n->addr);
+#endif
+	if (n->bufferIndex<50) return false;		//minimum length
 	char* key = strstr(n->buffer, "Sec-WebSocket-Key: ");
 	char* endheader = strstr(n->buffer, "\r\n\r\n");
 	if ((key != NULL) && (endheader!=NULL))
@@ -329,7 +338,7 @@ bool websockhandshake(WebSockNetworkConfig config, WebSockNetwork n,size_t* l)
 		sha1(n->sendmsg, n->sendIndex, d);
 		unsigned char encoded_data[40];
 		base64_encode(d, 20, (char*)&encoded_data);
-		sprintf(n->sendmsg, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", (const char*)encoded_data);
+		snprintf(n->sendmsg, 1000,"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", (const char*)encoded_data);
 		n->sendIndex = strlen(n->sendmsg);
 		n->handshake = true;
 		size_t len = endheader - n->buffer;
@@ -442,12 +451,12 @@ void* websocksingleprocthread(void* arg)
 		FD_ZERO(&socks);
 		FD_SET(n->socket, &socks);
 		readsocks = select(FD_SETSIZE, &socks, (fd_set*)0, (fd_set*)0, &timeout);
-		retval = (readsocks > 0) ? recv(n->socket, &n->buffer[n->bufferIndex], n->bufferSize - n->bufferIndex, 0) : 0;
+		retval = (readsocks > 0) ? recv(n->socket, &n->buffer[n->bufferIndex], n->bufferSize - n->bufferIndex-1, 0) : 0;
 		if (retval >= 0)		//in case retval==0 or -1
 		{
 			if (retval > 0) {
 				n->bufferIndex += retval;
-				n->buffer[n->bufferIndex] = 0;
+				n->buffer[n->bufferIndex] = 0; //ใส่ 0 ไว้
 				n->lastping = time(NULL);
 			}
 			if (!n->handshake) {
@@ -1141,4 +1150,15 @@ void base64_encode(const unsigned char* data, size_t input_length, char* encoded
 	for (int i = 0; i < mod_table[input_length % 3]; i++)
 		encoded_data[output_length - 1 - i] = '=';
 	encoded_data[output_length] = 0;
+}
+
+void printipaddr(struct sockaddr* addr)
+{
+	char ip_str[INET_ADDRSTRLEN]; // Buffer for IPv4 address string
+	if (addr->sa_family == AF_INET) {
+		const struct sockaddr_in* sin = reinterpret_cast<const struct sockaddr_in*>(addr);
+		if (inet_ntop(AF_INET, &(sin->sin_addr), ip_str, INET_ADDRSTRLEN) != nullptr) {
+			std::cout  << ip_str << std::endl;
+		} 
+	}
 }
