@@ -411,6 +411,7 @@ void endwebsockproc(WebSockProcThread p,bool destroynetwork)
 
 void endwebsockroomproc(WebSockRoomProcThread p,WebSockNetwork n)
 {
+	tcpunsetsocket(p,n);
 	WebSockNetworkConfig config = p->config;
 	n->state = WEBSOCKSTATEDESTROY;
 	config->msgFunc(n,NULL,-1);
@@ -427,9 +428,7 @@ void websockping(WebSockRoomProcThread c)
 #if defined(_DEBUGNETWORK) 
 		std::cout << "ping disconnect " << std::endl;
 #endif 	     
-		n->state = WEBSOCKSTATEDESTROY;
-		c->config->msgFunc(n,NULL,-1);
-		destroywebsocknetwork(n);
+		endwebsockroomproc(c,n);
 	  }
 }
 
@@ -631,7 +630,6 @@ void* websockroomprocthread(void* arg)
 	  //************************** end user ***********************
 	  for (int i=0;i<c->numenduser;i++)
 	  {
-		  tcpunsetsocket(c,c->enduser[i]);
 		  endwebsockroomproc(c,c->enduser[i]);
 	  }
 	  c->numenduser=0;
