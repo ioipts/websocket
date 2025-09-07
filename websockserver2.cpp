@@ -207,9 +207,9 @@ void websockshiftbuffer(WebSockNetwork n, size_t len)
 * check required buffer len
 * @return size required in bytes
 */
-int websockencodelen(size_t blen)
+size_t websockencodelen(size_t blen)
 {
-	int k = 0;
+	size_t k = 0;
 	if (blen <= 125) {
 		k = 2;
 	}
@@ -302,7 +302,7 @@ int websockdecode(char* data,int length,char* output) {
     unsigned int i = indexFirstMask + 4;
     unsigned int index = 0;
 	unsigned int end = indexFirstMask + 4 + blen;
-    int k=0;
+    size_t k=0;
 	while (k < blen) {
         output[k] = (data[i++] ^ masks[index++ % 4]);
 		k++;
@@ -960,7 +960,7 @@ bool websocksettext(WebSockNetwork n, const char* msg)
 
 bool websocksetcontent(WebSockNetwork n, const char* content,size_t size)
 {
-	int s = websockencodelen(size);
+	size_t s = websockencodelen(size);
 	if (n->sendSize - n->sendIndex < s) return false;
 	int len = websockencode(content,size, (unsigned char*)n->sendmsg);
 	n->sendIndex += len;
@@ -1133,7 +1133,7 @@ void base64_encode(const unsigned char* data, size_t input_length, char* encoded
 
 	size_t output_length = 4 * ((input_length + 2) / 3);
 
-	for (int i = 0, j = 0; i < input_length;) {
+	for (size_t i = 0, j = 0; i < input_length;) {
 
 		unsigned int octet_a = i < input_length ? data[i++] : 0;
 		unsigned int octet_b = i < input_length ? data[i++] : 0;
