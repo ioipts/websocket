@@ -554,7 +554,7 @@ void* websockroomprocthread(void* arg)
 		c->user[c->numuser]=c->add;
 		c->numuser++;
 		tcpsetsocket(c,c->numuser-1);
-		printf("add\n");
+		std::cout<< "add " << c->numuser << std::endl;
 		c->add=NULL;
 	}
 	if (c->remove!= NULL) {
@@ -814,9 +814,11 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	pthread_mutex_unlock(&p->mutex);
 #else
 	c->mutex->mutex.unlock();
-	}
+	} else 
+		std::this_thread::yield();
 #endif
 	}
+	std::cout << "wait add\n";
 	//รอจนกระทั้ง c->add!=NULL
 	added=false;
 	while (!added) {
@@ -830,9 +832,11 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	pthread_mutex_unlock(&c->mutex);	
 #else
 	c->mutex->mutex.unlock();
-	}
+	} else 
+		std::this_thread::yield();
 #endif
 	}
+	std::cout << "done add\n";
 }
 
 void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwork n)
