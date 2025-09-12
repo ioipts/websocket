@@ -447,7 +447,6 @@ void* websocksingleprocthread(void* arg)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 0;
 
-	std::cout << "start proc thread" << c->n << std::endl;
 	r = WEBSOCKMSGCONTINUE;
 	while ((r != WEBSOCKMSGEND) && (r!=WEBSOCKMSGLEAVE) && (!config->exitflag) && (time(NULL) - n->lastping < config->pingtimeout)) {
 		FD_ZERO(&socks);
@@ -540,7 +539,6 @@ void* websockroomprocthread(void* arg)
 	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add!=NULL) {
-		std::cout<< "in " << c->numuser << " " << c->add<< " " << c->addId << std::endl;
 		if (c->numuser>=c->sizeuser) { //need to expand
 			int newsize=c->sizeuser+256;
 			WebSockNetwork* u=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
@@ -556,7 +554,6 @@ void* websockroomprocthread(void* arg)
 		c->user[c->numuser]=c->add;
 		c->numuser++;
 		tcpsetsocket(c,c->numuser-1);
-		std::cout<< "add " << c->numuser << std::endl;
 		c->add=NULL;
 	}
 	if (c->remove!= NULL) {
@@ -813,7 +810,6 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	if (c->add== NULL) {
 		c->addId++;
 		id = c->addId;
-		std::cout<< "set add "<< n << " " << id << std::endl; 
 		c->add = n;
 		added=true;
 	}
@@ -826,7 +822,6 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 		std::this_thread::yield();
 #endif
 	}
-	std::cout << "wait add " << " " << id << std::endl;
 	//รอจนกระทั้ง c->add!=NULL
 	added=false;
 	while (!added) {
@@ -845,7 +840,6 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 		std::this_thread::yield();
 #endif
 	}
-	std::cout << "done add " <<" "<< id << std::endl;
 }
 
 void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwork n)

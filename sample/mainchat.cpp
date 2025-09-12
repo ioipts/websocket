@@ -2,6 +2,8 @@
 * Web Socket server
 * จะทำหน้า echo msg ไปยังทุกคนที่อยู่ใน ห้อง
 * for gaming
+*
+* 12/09/2025 tested
 */
 
 #include "websockserver2.h"
@@ -26,11 +28,11 @@ int onnetwork(WebSockNetwork n,const char* msg,size_t len)
 				return WEBSOCKMSGEND;
 			}
 			if ((len>=5) && (memcmp(msg, "debug", len) == 0)) {
-				printf("numuser=%d\n", room1->numuser);
-				printf("numreadset=%d\n", room1->numreadset);
-				int p=room1->config->numprocthread;
-				printf("numprocthread=%d\n", p);
-				return WEBSOCKMSGEND;
+				std::string s = "numuser=" + std::to_string(room1->numuser) + "\n";
+				s += "numreadset=" + std::to_string(room1->numreadset) + "\n";
+				s += "numprocthread=" + std::to_string(room1->config->numprocthread);
+				websocksettext(n, s.c_str());
+				return WEBSOCKMSGCONTINUE;
 			}
 			// relay message to all
 			for (int i=0;i<room1->numuser;i++)
