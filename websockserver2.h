@@ -293,10 +293,13 @@ struct WebSockRoomProcThreadS
 	 * Network ที่จะใส่เข้าไป ถ้า remove แล้วจะใส่เป็น null
 	 */
 	WebSockNetwork add;
+    size_t addId;
 	/**
 	 * Network ที่จะเอาออก
 	 */
 	WebSockNetwork remove;
+	size_t removeId;
+	
 	/**
 	 * 
 	 */

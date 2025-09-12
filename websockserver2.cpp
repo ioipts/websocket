@@ -160,7 +160,9 @@ WebSockRoomProcThread initwebsockroomproc(WebSockNetworkConfig config) {
 	c->numenduser=0;
 	//c->numleaveuser=0;
 	c->add=NULL;
+	c->addId=0;
 	c->remove=NULL;
+	c->removeId=0;
 	c->pingturnid=0;
 	return c;
 }
@@ -447,6 +449,7 @@ void* websocksingleprocthread(void* arg)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 0;
 
+	std::cout << "start proc thread" << c->n << std::endl;
 	r = WEBSOCKMSGCONTINUE;
 	while ((r != WEBSOCKMSGEND) && (r!=WEBSOCKMSGLEAVE) && (!config->exitflag) && (time(NULL) - n->lastping < config->pingtimeout)) {
 		FD_ZERO(&socks);
@@ -539,6 +542,7 @@ void* websockroomprocthread(void* arg)
 	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add!=NULL) {
+		std::cout<< "in " << c->numuser << " " << c->add<< " " << c->addId << std::endl;
 		if (c->numuser>=c->sizeuser) { //need to expand
 			int newsize=c->sizeuser+256;
 			WebSockNetwork* u=(WebSockNetwork*)ALLOCMEM(newsize*sizeof(WebSockNetwork));
@@ -799,7 +803,9 @@ void WebSockServerNetwork::destroyRoom(WebSockRoomProcThread c)
 
 void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 {
+	size_t id=0;
 	bool added=false;
+	n->state = WEBSOCKSTATECONTINUE;
 	while (!added) {
 #if defined(_PTHREAD)
 	pthread_mutex_lock(&c->mutex);
@@ -807,6 +813,9 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add== NULL) {
+		c->addId++;
+		id = c->addId;
+		std::cout<< "set add "<< n << " " << id << std::endl; 
 		c->add = n;
 		added=true;
 	}
@@ -818,7 +827,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 		std::this_thread::yield();
 #endif
 	}
-	std::cout << "wait add\n";
+	std::cout << "wait add " << " " << id << std::endl;
 	//รอจนกระทั้ง c->add!=NULL
 	added=false;
 	while (!added) {
@@ -827,7 +836,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 #else
 	if (c->mutex->mutex.try_lock()) {
 #endif
-	if (c->add==NULL || c->add!=n) added=true;
+	if (c->add==NULL || c->add!=n || c->addId!=id) added=true;
 #if defined(_PTHREAD)
 	pthread_mutex_unlock(&c->mutex);	
 #else
@@ -836,11 +845,12 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 		std::this_thread::yield();
 #endif
 	}
-	std::cout << "done add\n";
+	std::cout << "done add " <<" "<< id << std::endl;
 }
 
 void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwork n)
 {
+	size_t id=0;
 	bool removed=false;
 	while (!removed) {
 #if defined(_PTHREAD)
@@ -849,6 +859,8 @@ void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwor
 	c->mutex->mutex.lock();
 #endif
 	if (c->remove== NULL) {
+		c->removeId++;
+		id = c->removeId;
 		c->remove = n;
 		removed=true;
 	}
@@ -866,7 +878,7 @@ void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwor
 #else
     c->mutex->mutex.lock();
 #endif
-	if (c->remove==NULL || c->remove!=n) removed=true;
+	if (c->remove==NULL || c->remove!=n || c->removeId!=id) removed=true;
 #if defined(_PTHREAD)
 	pthread_mutex_unlock(&c->mutex);
 #else
