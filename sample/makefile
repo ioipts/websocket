@@ -1,6 +1,6 @@
 #22/05/2023
 EXECUTABLE=websocket
-CC=g++
+CC=g++ -D_PTHREAD -D_DEBUGNETWORK
 OBJ_PATH=.
 ifndef OS
 OS=$(shell uname)

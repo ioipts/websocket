@@ -2,8 +2,6 @@
 #include <iostream>
 #include <math.h>
 
-#define _DEBUGNETWORK
-
 //both receiving and sending buffer (not below 1000	bytes)
 unsigned int WebSockServerNetwork::MSGSIZE = 100000;
 unsigned int WebSockServerNetwork::MAXLISTEN = 128;
@@ -129,11 +127,11 @@ WebSockProcThread initwebsockproc(WebSockNetwork n, WebSockNetworkConfig config)
 void destroywebsockproc(WebSockProcThread p)
 {
 #if defined(_PTHREAD)
-	pthread_mutex_lock(&config->mutex);
+	pthread_mutex_lock(&p->config->mutex);
 #endif
 	p->config->numprocthread--;
 #if defined(_PTHREAD)
-	pthread_mutex_unlock(&config->mutex);
+	pthread_mutex_unlock(&p->config->mutex);
 #endif
 	FREEMEM(p);
 }
@@ -144,7 +142,7 @@ WebSockRoomProcThread initwebsockroomproc(WebSockNetworkConfig config) {
 	c->config = config;
 	c->exitflag = false;
 #if defined(_PTHREAD)
-	pthread_init_mutex(&c->mutex);
+	if (pthread_mutex_init(&c->mutex,NULL)!=0) { FREEMEM(c); return NULL; }
 #else
 	c->mutex = new WebSockMutex();
 #endif
@@ -698,8 +696,8 @@ void* websocklistenthread(void* arg)
 						pthread_attr_getschedparam(&tattr, &schedparam);
 						schedparam.sched_priority = 99;
 						pthread_attr_setschedparam(&tattr, &schedparam);
-						HTTPProcThread p = inithttpproc(n, config);
-						int rc = pthread_create(&workerThreadId, &tattr, websockprocthread, (void*)p);
+						WebSockProcThread p = initwebsockproc(n, config);
+						int rc = pthread_create(&workerThreadId, &tattr, websocksingleprocthread, (void*)p);
 						if (rc != 0) {
 							destroywebsockproc(p);
 						}
@@ -748,7 +746,7 @@ void WebSockServerNetwork::begin()
 	if (config == NULL) return;
 #if defined(_PTHREAD)
 	pthread_t workerThreadId;
-	int rc = pthread_create(&workerThreadId, NULL, httplistenthread, (void*)config->listenthread);
+	int rc = pthread_create(&workerThreadId, NULL, websocklistenthread, (void*)config->listenthread);
 	if (rc != 0) return;
 	(void)pthread_join(workerThreadId, NULL);
 #else
@@ -782,9 +780,9 @@ WebSockRoomProcThread WebSockServerNetwork::createRoom()
 		pthread_attr_getschedparam(&tattr, &schedparam);
 		schedparam.sched_priority = 99;
 		pthread_attr_setschedparam(&tattr, &schedparam);
-		int rc = pthread_create(&workerThreadId, &tattr, websockroomprocthread, (void*)p);
+		int rc = pthread_create(&workerThreadId, &tattr, websockroomprocthread, (void*)c);
 		if (rc != 0) {
-			destroywebsockproc(p);
+			destroywebsockroomproc(c);
 		}
 		else {
 			pthread_detach(workerThreadId);
@@ -808,7 +806,7 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	n->state = WEBSOCKSTATECONTINUE;
 	while (!added) {
 #if defined(_PTHREAD)
-	pthread_mutex_lock(&c->mutex);
+	if (pthread_mutex_trylock(&c->mutex) == 0) {
 #else
 	if (c->mutex->mutex.try_lock()) {
 #endif
@@ -820,7 +818,8 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 		added=true;
 	}
 #if defined(_PTHREAD)
-	pthread_mutex_unlock(&p->mutex);
+	pthread_mutex_unlock(&c->mutex);
+}
 #else
 	c->mutex->mutex.unlock();
 	} else 
@@ -832,13 +831,14 @@ void WebSockServerNetwork::addToRoom(WebSockRoomProcThread c, WebSockNetwork n)
 	added=false;
 	while (!added) {
 #if defined(_PTHREAD)
-	pthread_mutex_lock(&c->mutex);	
+	if (pthread_mutex_trylock(&c->mutex) == 0) {
 #else
 	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->add==NULL || c->add!=n || c->addId!=id) added=true;
 #if defined(_PTHREAD)
-	pthread_mutex_unlock(&c->mutex);	
+		pthread_mutex_unlock(&c->mutex);	
+	}
 #else
 	c->mutex->mutex.unlock();
 	} else 
@@ -854,9 +854,9 @@ void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwor
 	bool removed=false;
 	while (!removed) {
 #if defined(_PTHREAD)
-	pthread_mutex_lock(&c->mutex);
+	if (pthread_mutex_trylock(&c->mutex)) {
 #else
-	c->mutex->mutex.lock();
+	if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->remove== NULL) {
 		c->removeId++;
@@ -866,23 +866,29 @@ void WebSockServerNetwork::removeFromRoom(WebSockRoomProcThread c, WebSockNetwor
 	}
 #if defined(_PTHREAD)
 	pthread_mutex_unlock(&c->mutex);
+	}
 #else
     c->mutex->mutex.unlock();
+	} else 
+		std::this_thread::yield();
 #endif
 	}
 	//รอจนกระทั้ง c->remove!=NULL
 	removed=false;
 	while (!removed) {
 #if defined(_PTHREAD)
-	pthread_mutex_lock(&c->mutex);
+	if (pthread_mutex_trylock(&c->mutex)) {
 #else
-    c->mutex->mutex.lock();
+    if (c->mutex->mutex.try_lock()) {
 #endif
 	if (c->remove==NULL || c->remove!=n || c->removeId!=id) removed=true;
 #if defined(_PTHREAD)
 	pthread_mutex_unlock(&c->mutex);
+	}
 #else
 	c->mutex->mutex.unlock();
+	} else 
+		std::this_thread::yield();
 #endif
 	}
 }
